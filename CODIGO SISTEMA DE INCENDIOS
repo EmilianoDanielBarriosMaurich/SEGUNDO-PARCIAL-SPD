@@ -1,0 +1,185 @@
+#include <LiquidCrystal.h>
+#include <Servo.h>
+#include <IRremote.hpp>
+//EMILIANO DANIEL BARRIOS MAURICH
+//2° PARCIAL
+
+#define ROJO 12
+#define AZUL 13
+#define SENSOR A0
+#define SWITCH 2
+
+
+LiquidCrystal LCD(3,4,5,6,7,8);
+Servo servo;
+int servoPin = 9;
+float angulo = 0;
+int temperaturaLeida = 0;
+float temperatura = 0;
+float temperatura_relativa = 0;
+int controlPin = 11;  
+IRrecv control(controlPin);
+decode_results results;
+int boton;
+
+void setup()
+{
+  pinMode(ROJO, OUTPUT);
+  pinMode(AZUL, OUTPUT);
+  pinMode(SWITCH, INPUT);
+  servo.attach(servoPin);
+  LCD.begin(16,2);
+  control.enableIRIn();
+  Serial.begin(9600);
+}
+void loop()
+{
+  temperaturaLeida = analogRead(SENSOR);
+  temperatura = map(temperaturaLeida, 20, 357, -40, 125);
+  
+  if(digitalRead(SWITCH) == HIGH)//ALTERA EL SWITCH PARA QUE EL LCD MUESTRE LA TEMPERATURA DEL AMBIENTE.
+  {
+    mostrar_temperatura(temperatura); 
+  }
+  if(digitalRead(SWITCH) == LOW)//ALTERA EL SWITCH PARA QUE EL LCD MUESTRE UNA TEMPERATURA RELATIVA MANEJADA POR EL USUARIO.
+  {
+    mostrar_temperatura(temperatura_relativa);
+    accionar_control();
+  }  
+}
+
+
+
+
+
+
+
+void mostrar_temperatura(float temperatura)//ESTA FUNCION MUESTRA EN EL LCD LA TEMPERATURA RECIBIDA Y LA ESTACION DEL AÑO EN BASE A ESA TEMPERATURA.
+{
+  if(temperatura >= -40 && temperatura <= 10)
+  {
+    LCD.setCursor(4, 0);
+  	LCD.print("INVIERNO");
+    LCD.setCursor(4, 1);
+    LCD.print(temperatura);
+    LCD.setCursor(7, 1);
+    LCD.print(" g C");
+    delay(500);
+  }
+  if(temperatura > 10 && temperatura <= 18)
+  {
+    LCD.setCursor(5, 0);
+  	LCD.print("OTONO");
+    LCD.setCursor(4, 1);
+  	LCD.print(temperatura);
+    LCD.setCursor(7, 1);
+    LCD.print(" g C");
+    delay(500);
+  }
+  if(temperatura > 18 && temperatura <= 25)
+  {
+    LCD.setCursor(3, 0);
+  	LCD.print("PRIMAVERA");
+    LCD.setCursor(4, 1);
+  	LCD.print(temperatura);
+    LCD.setCursor(7, 1);
+    LCD.print(" g C");
+    delay(500);
+  }
+  if(temperatura > 25 && temperatura <= 40)
+  {
+    LCD.setCursor(5, 0);
+  	LCD.print("VERANO");
+    LCD.setCursor(4, 1);
+  	LCD.print(temperatura);
+    LCD.setCursor(7, 1);
+    LCD.print(" g C");
+    delay(500);
+  }
+  if(temperatura > 40 && temperatura < 60)
+  {
+    LCD.setCursor(0, 0);
+  	LCD.print("ESTA HACIENDO");
+    LCD.setCursor(0, 1);
+  	LCD.print("MUCHO CALOR");
+    delay(500);
+  }
+  
+  if (temperatura >= 60)
+  {
+    detector_incendio();
+  }
+  else
+  {
+    digitalWrite(ROJO, LOW);
+    digitalWrite(AZUL, LOW);
+  }
+  LCD.clear();
+}
+
+void detector_incendio()//ESTA FUNCION SE ACTIVA EN CASO DE INCENDIOS. SE INVOCA PARA RESPONDER CUANDO LA TEMPERATURA SUBE A 60 GRADOS.
+{
+  LCD.setCursor(4, 0);
+  LCD.print("ALERTA !!!");
+  LCD.setCursor(3, 1);
+  LCD.print("INCENDIO !!!");
+  digitalWrite(ROJO, HIGH);
+  digitalWrite(AZUL, LOW);
+  servo.write(90);
+  delay(500);
+  LCD.clear();
+  digitalWrite(ROJO, LOW);
+  digitalWrite(AZUL, HIGH);
+  servo.write(0);
+  delay(500);
+}
+
+void accionar_control()//ESTA FUNCION ACTIVA EL CONTROL REMOTO.
+{
+  if(control.decode()) 
+  	{
+    	auto value= control.decodedIRData.decodedRawData; 
+    
+    	Serial.println(value);
+      	switch(value)
+      	{        
+        	case 4010852096://PRESIONANDO EL "1" EN EL CONTROL REMOTO EL LCD MARCA UNA TEMPERATURA DE INVIERNO.
+        	temperatura_relativa = -40; 
+          	break;
+          
+        	case 3994140416: //PRESIONANDO EL "2" EN EL CONTROL REMOTO EL LCD MARCA UNA TEMPERATURA DE OTOÑO.
+        	temperatura_relativa = 11;
+         	break;
+          
+          	case 3977428736://PRESIONANDO EL "3" EN EL CONTROL REMOTO EL LCD MARCA UNA TEMPERATURA DE PRIMAVERA.
+        	temperatura_relativa = 19; 
+          	break;
+          
+        	case 3944005376: //PRESIONANDO EL "4" EN EL CONTROL REMOTO EL LCD MARCA UNA TEMPERATURA DE VERANO.
+        	temperatura_relativa = 26;
+         	break;
+          
+          	case 3927293696: //PRESIONANDO EL "5" EN EL CONTROL REMOTO EL LCD MARCA UNA TEMPERATURA DE 60 GRADOS Y ACTIVA EL SISTEMA CONTRA INCENDIOS.
+        	temperatura_relativa = 60;
+         	break;
+        	
+            case 4111122176://PRESIONANDO LA FLECHA PARA ARRIBA EN EL CONTROL REMOTO LA TEMPERATURA AUMENTA EN UN GRADO (SIENDO 125° EL LIMITE).
+        	temperatura_relativa++;
+          	if(temperatura_relativa > 125)
+            {
+              temperatura_relativa = 125;
+            }
+          	break;
+          
+        	case 4144545536: //PRESIONANDO LA FLECHA PARA ABAJO EN EL CONTROL REMOTO LA TEMPERATURA DISMINUYE EN UN GRADO (SIENDO -40° EL LIMITE).
+        	temperatura_relativa--; 
+          	if(temperatura_relativa < -40)
+            {
+              temperatura_relativa = -40;
+            }
+         	break;
+        } 
+      LCD.clear();
+      control.resume();
+	}
+}
